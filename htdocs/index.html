@@ -7,13 +7,38 @@
     <p>Welcome to the index.html web page..</p>
     <p>Here's a link to <a href="ipsum.html">Ipsum</a></p>
 
-    <form action="/index.html" method="post">
-        <label for="fname">First name:</label>
+    <form method="post" id="userData">
+        <label for="fname">Username:</label>
         <input type="text" id="fname" name="username"><br><br>
-        <label for="lname">Last name:</label>
-        <input type="text" id="lname" name="password"><br><br>
-        <input type="submit" value="Submit">
+        <label for="lname">Password:</label>
+        <input type="text" id="password" name="password"><br><br>
+        <input type="submit" id="btnSubmit" value="Submit">
     </form>
     <img src="test.png" >
 </body>
+
+<script>
+
+    function sha256(input) {
+        const utf8Encoder = new TextEncoder('utf-8');
+        const buffer = utf8Encoder.encode(input);
+        return crypto.subtle.digest('SHA-256', buffer).then(hashBuffer => {
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        });
+    }
+
+
+    document.getElementById("btnSubmit").addEventListener("click", function (event) {
+        event.preventDefault();
+
+        sha256(document.getElementById("password").value).then(hash => {
+            document.getElementById("password").value = hash
+            console.log(document.getElementById("password").value)
+            document.getElementById("userData").submit();
+        })
+
+    });
+</script>
 </html>

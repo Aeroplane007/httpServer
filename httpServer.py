@@ -1,11 +1,13 @@
 import socket
 import imageio
 import os
+import ssl
 
 
 #host ip and port
 SERVER_HOST = '0.0.0.0'
 SERVER_PORT = 8080
+
 
 #open up socket and listen to port
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -13,6 +15,8 @@ server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server_socket.bind((SERVER_HOST, SERVER_PORT))
 server_socket.listen(1)
 print('Listening on port %s ...' % SERVER_PORT)
+
+
 
 def ReadFile(filename):
 
@@ -62,6 +66,7 @@ while True:
 
     client_connection, client_address = server_socket.accept()
 
+
     request = client_connection.recv(10240).decode()
     print(request)
 
@@ -92,8 +97,9 @@ while True:
             client_connection.sendall(response)
     elif request[:4] == 'POST':
         print("shiiiiii")
-        username = request.split('username=', '&')[1]
-        print(username)
+        username = request.split('username=')[1].split('&')[0]
+        password = request.split('password=')[1]
+        print(username + "   " + password)
     
     client_connection.close()
     
