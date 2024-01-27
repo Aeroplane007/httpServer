@@ -70,6 +70,10 @@ def BuildMsg(status, content, type):
             response += bytes("Content-Type: image/"+ type + "\r\n", "ascii")
             response += b'Accept-Ranges: bytes\r\n\r\n'
             response += content
+    elif status == 403:
+        response = 'HTTP/1.0 403 Forbidden\n\n'
+        response += '<html><body><h1>403 Forbidden!</h1></body></html>'
+        response = response.encode()
     else:
         response = b'HTTP/1.0 404 Not Found\r\n'
 
@@ -77,7 +81,7 @@ def BuildMsg(status, content, type):
 
 def SetCookie(client_connection, username):
     #generate cookie id by random number
-    cookie_id = secrets.token_urlsafe(16) 
+    cookie_id = secrets.token_urlsafe(16) + "AAA"
     
     #send cookie to user
     response = 'HTTP/1.0 200 OK\r\n'
@@ -99,9 +103,9 @@ def CheckCookie(cookie_id):
 
     print("checking cookise")
     #check if cookie_id exists in the table
-    query = "SELECT * FROM users WHERE TRIM(cookie_id) = TRIM(%s);"
+    query = "SELECT cookie_id FROM users WHERE cookie_id = %s;"
     mycursor.execute(query, (cookie_id,))
-    print(cookie_id)
+    print((cookie_id,))
     id = mycursor.fetchone()
     print(id)
     if not id:
@@ -115,12 +119,22 @@ def CheckCookie(cookie_id):
         time = t
     print(time)
     #if it was too many minutes ago(one day) return false
-    if time > 24*60:
+    if -time > 24*60:
         return False
     
     #otherwise return true
     return True
     
+
+def ParseHTML(file, text_to_replace, replacement):
+    file_data = ReadFile("file")
+    
+
+
+
+
+
+
 
 
 while True:
@@ -139,31 +153,32 @@ while True:
     filename = headers[0].split()[1]
     if 'Cookie' in request:
         index = request.find("Cookie: id=")
-        cookie_id = request[index+11:]
+        end_index = request.find("AAA")
+        cookie_id = request[index+11:end_index+3]
         print("cookieees: " + cookie_id)
 
     if filename == '/':
         filename = '/index.html'
 
     type = filename.split('.')[1]
-    content = ReadFile(filename)
+
     print(filename)
     #in future, check if they have acces to the page they are trying to enter
-    if (filename == "/login.html"):
-        if not CheckCookie(cookie_id):
-            response = BuildMsg(404, 0, 0)
-            print("4044")
-            client_connection.sendall(response)
-            continue
-    else:
 
-        if request[:3] == 'GET':
-            
+
+
+    if request[:3] == 'GET':
+        if (filename == "/login.html") and not CheckCookie(cookie_id):
+            response = BuildMsg(403, 0, 0)
+            client_connection.sendall(response)
+        else:
+            if (filename == "/index.html") and CheckCookie(cookie_id):
+                filename = "/login.html"
+            content = ReadFile(filename)
             if isinstance(content, str):
                 if content != 'fail':
-
-                        response = BuildMsg(200, content, type)
-                        client_connection.sendall(response)
+                    response = BuildMsg(200, content, type)
+                    client_connection.sendall(response)
 
                 else:
                     response = BuildMsg(404, 0, 0)
@@ -171,26 +186,30 @@ while True:
             else:
                 response = BuildMsg(200, content, type)
                 client_connection.sendall(response)
+ 
 
 
-        elif request[:4] == 'POST':
-            username = request.split('username=')[1].split('&')[0]
-            password = request.split('password=')[1]
-            print(username + "   " + password)
-            mycursor.execute(sqlquery, (username,))
-            myresults = mycursor.fetchone()
-            for row in myresults:
-                myresults = row
-            if password == myresults:
-                print('sucess')
-                SetCookie(client_connection, username)
-                response = BuildMsg(200, content, type)
-                client_connection.sendall(response)
+    elif request[:4] == 'POST':
+        username = request.split('username=')[1].split('&')[0]
+        password = request.split('password=')[1]
+        print(username + "   " + password)
+        mycursor.execute(sqlquery, (username,))
+        myresults = mycursor.fetchone()
+        if not myresults:
+            response = BuildMsg(600,0,0)
+            ParseHTML("index.html", "<!--Invalid username-->", "<p style="color: red">Invalid username or password</p>")
+        for row in myresults:
+           myresults = row
+        if password == myresults:
+            print('success')
+            SetCookie(client_connection, username)
+            response = BuildMsg(200, content, type)
+            client_connection.sendall(response)
                 
-            else:
-                content = ReadFile("/logfail.html")
-                response = BuildMsg(200, content, type)
-                client_connection.sendall(response)
+        else:
+            content = ReadFile("/logfail.html")
+            response = BuildMsg(200, content, type)
+            client_connection.sendall(response)
     
     client_connection.close()
     
