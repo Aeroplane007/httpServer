@@ -24,7 +24,7 @@ db = mysql.connector.connect(
 )
 
 mycursor = db.cursor()
-sqlquery = "SELECT password FROM users WHERE username = %s;"
+
 
 #mycursor.execute(sqlquery)
 #db.commit()
@@ -39,7 +39,6 @@ print('Listening on port %s ...' % SERVER_PORT)
 
 
 def ReadFile(filename):
-
     type = filename.split('.')[1]
     if os.path.isfile("htdocs" + filename):
         file = open('htdocs' + filename)
@@ -55,33 +54,56 @@ def ReadFile(filename):
         
     else:
         print("no path: htdocs" + filename)
-        content = "fail"
+        raise Exception("No such file")
 
-    return content
+    return content, type
 
 
-def BuildMsg(status, content, type):
+def BuildMsg(status, file, client_connection):
+    
     if status == 200:
-        if type == 'html' or type == 'script' or type == 'css' or type == 'txt':
-            response = 'HTTP/1.0 200 OK\n\n' + content
-            response = response.encode()
-        else:
-            response = b'HTTP/1.0 200 OK\r\n'
-            response += bytes("Content-Type: image/"+ type + "\r\n", "ascii")
-            response += b'Accept-Ranges: bytes\r\n\r\n'
-            response += content
+        #try to read file
+        try:
+            content, type = ReadFile(filename)
+            if type == 'html' or type == 'script' or type == 'css' or type == 'txt':
+                response = 'HTTP/1.0 200 OK\n\n' + content
+                response = response.encode()
+                client_connection.sendall(response)
+            else:
+                response = b'HTTP/1.0 200 OK\r\n'
+                response += bytes("Content-Type: image/"+ type + "\r\n", "ascii")
+                response += b'Accept-Ranges: bytes\r\n\r\n'
+                response += content
+                client_connection.sendall(response)
+        except:
+            #if no such file exists send 404
+            print("except")
+            BuildMsg(404,0, client_connection)
     elif status == 403:
-        response = 'HTTP/1.0 403 Forbidden\n\n'
-        response += '<html><body><h1>403 Forbidden!</h1></body></html>'
+        response = b'HTTP/1.0 403 Forbidden\n\n'
+        response += b'<html><body><h1>404 Forbidden!</h1></body></html>'
+        client_connection.sendall(response)
+    elif status == 600:
+        content = ParseHTML(file,"<!--Invalid username-->", "<p style=\"color: red\">Invalid username or password</p>")
+        response = 'HTTP/1.0 200 OK\n\n' + content
         response = response.encode()
+        client_connection.sendall(response)
+    elif status == 601:
+        content = ParseHTML(file,"<!--User already exist-->", "<p style=\"color: red\">Username already exist</p>")
+        print(content)
+        response = 'HTTP/1.0 200 OK\n\n' + content
+        response = response.encode()
+        client_connection.sendall(response)
     else:
-        response = b'HTTP/1.0 404 Not Found\r\n'
+        print("404")
+        response = b'HTTP/1.0 404 Not Found\n\n'
+        response += b'<html><body><h1>404 Not Found!</h1></body></html>'
+        client_connection.sendall(response)
 
-    return response
 
 def SetCookie(client_connection, username):
     #generate cookie id by random number
-    cookie_id = secrets.token_urlsafe(16) + "AAA"
+    cookie_id = secrets.token_urlsafe(16) + "$"
     
     #send cookie to user
     response = 'HTTP/1.0 200 OK\r\n'
@@ -119,7 +141,7 @@ def CheckCookie(cookie_id):
         time = t
     print(time)
     #if it was too many minutes ago(one day) return false
-    if -time > 24*60:
+    if (-1)*time > 24*60:
         return False
     
     #otherwise return true
@@ -127,9 +149,11 @@ def CheckCookie(cookie_id):
     
 
 def ParseHTML(file, text_to_replace, replacement):
-    file_data = ReadFile("file")
-    
+    file_data = open('htdocs/' + file)
+    content = file_data.read()
+    content = content.replace(text_to_replace, replacement)
 
+    return content
 
 
 
@@ -153,8 +177,8 @@ while True:
     filename = headers[0].split()[1]
     if 'Cookie' in request:
         index = request.find("Cookie: id=")
-        end_index = request.find("AAA")
-        cookie_id = request[index+11:end_index+3]
+        end_index = request.find("$")
+        cookie_id = request[index+11:end_index+1]
         print("cookieees: " + cookie_id)
 
     if filename == '/':
@@ -169,47 +193,67 @@ while True:
 
     if request[:3] == 'GET':
         if (filename == "/login.html") and not CheckCookie(cookie_id):
-            response = BuildMsg(403, 0, 0)
-            client_connection.sendall(response)
+            BuildMsg(403, 0, client_connection)
         else:
+            print("filenameee is:" + filename)
             if (filename == "/index.html") and CheckCookie(cookie_id):
                 filename = "/login.html"
-            content = ReadFile(filename)
-            if isinstance(content, str):
-                if content != 'fail':
-                    response = BuildMsg(200, content, type)
-                    client_connection.sendall(response)
+            
+                BuildMsg(200, filename, client_connection)
 
-                else:
-                    response = BuildMsg(404, 0, 0)
-                    client_connection.sendall(response)
             else:
-                response = BuildMsg(200, content, type)
-                client_connection.sendall(response)
+                BuildMsg(200, filename, client_connection)
+
  
 
 
     elif request[:4] == 'POST':
-        username = request.split('username=')[1].split('&')[0]
-        password = request.split('password=')[1]
-        print(username + "   " + password)
-        mycursor.execute(sqlquery, (username,))
-        myresults = mycursor.fetchone()
-        if not myresults:
-            response = BuildMsg(600,0,0)
-            ParseHTML("index.html", "<!--Invalid username-->", "<p style="color: red">Invalid username or password</p>")
-        for row in myresults:
-           myresults = row
-        if password == myresults:
-            print('success')
-            SetCookie(client_connection, username)
-            response = BuildMsg(200, content, type)
-            client_connection.sendall(response)
-                
+        #check if trying to login or create account
+        if filename == "/login.html":
+            #get username and password from post
+            username = request.split('username=')[1].split('&')[0]
+            password = request.split('password=')[1]
+
+            #fetch password for user in sql
+            query = "SELECT password FROM users WHERE username = %s;"
+            mycursor.execute(query, (username,))
+            myresults = mycursor.fetchone()
+            #check if exists
+            if not myresults:
+                print("wrong user lol")
+                BuildMsg(600,"/index.html", client_connection)
+            else:
+                for row in myresults:
+                    myresults = row
+                if password == myresults:
+                    print('success')
+                    SetCookie(client_connection, username)
+                    BuildMsg(200, filename, client_connection)
+
+                        
+                else:
+                    content = ParseHTML("index.html", "<!--Invalid username-->", "<p style=\"color: red\">Invalid username or password</p>")
+                    print("wrong user lol")
+                    BuildMsg(600,"/index.html", client_connection)
+
         else:
-            content = ReadFile("/logfail.html")
-            response = BuildMsg(200, content, type)
-            client_connection.sendall(response)
+            username = request.split('username=')[1].split('&')[0]
+            password = request.split('password=')[1]
+
+            query = "SELECT username FROM users WHERE username = %s;"
+            mycursor.execute(query, (username,))
+            myresults = mycursor.fetchone()
+            if not myresults:
+                print("free")
+                query = "INSERT INTO users (username, password) VALUES (%s,%s)"
+                mycursor.execute(query, (username,password))
+                db.commit()
+                SetCookie(client_connection, username)
+                BuildMsg(200, filename, client_connection)
+            else:
+                print("user already exist")
+                BuildMsg(601,"create.html", client_connection)
+
     
     client_connection.close()
     

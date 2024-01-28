@@ -3,7 +3,10 @@
     <title>Create Account</title>
 </head>
 <body>
-    <form action="login.html" method="post" id="userData">
+
+    <!--User already exist-->
+
+    <form action="newuser.html" method="post" id="userData">
         <label for="fname">Username:</label>
         <input type="text" id="fname" name="username"><br><br>
         <label for="lname">Password:</label>
@@ -12,6 +15,29 @@
     </form>
 
 </body>
+<script>
 
+    function sha256(input) {
+        const utf8Encoder = new TextEncoder('utf-8');
+        const buffer = utf8Encoder.encode(input);
+        return crypto.subtle.digest('SHA-256', buffer).then(hashBuffer => {
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        });
+    }
+
+
+    document.getElementById("btnSubmit").addEventListener("click", function (event) {
+        event.preventDefault();
+
+        sha256(document.getElementById("password").value).then(hash => {
+            document.getElementById("password").value = hash
+            console.log(document.getElementById("password").value)
+            document.getElementById("userData").submit();
+        })
+
+    });
+</script>
 
 </html>
