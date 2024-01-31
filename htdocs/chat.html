@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat App</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+    }
+
+    #chat-container {
+      width: 300px;
+      margin: 50px auto;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #chat-messages {
+      padding: 10px;
+      height: 300px;
+      overflow-y: scroll;
+      background-color: #fff;
+    }
+
+    .message {
+      padding: 8px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      max-width: 70%;
+    }
+
+    .user-message {
+      background-color: #99ccff;
+      align-self: flex-end;
+      margin-left: 30%;
+    }
+
+    .bot-message {
+      background-color: #e6e6e6;
+      align-self: flex-start;
+    }
+
+    #input-container {
+      display: flex;
+      padding: 10px;
+      background-color: #fff;
+      border-top: 1px solid #ccc;
+    }
+
+    #user-input {
+      flex-grow: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin-right: 10px;
+    }
+
+    #send-button {
+      padding: 8px;
+      background-color: #4CAF50;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #name{
+        margin-left: 5%;
+        font-weight: 800;
+        font-size: large;
+    }
+  </style>
+</head>
+<body>
+
+<div id="chat-container">
+    <p id="name">kaj</p>
+  <div id="chat-messages">
+    <div class="message user-message"><!--Message--></div>
+    <div class="message bot-message">Hi there!</div>
+    <!-- Add more messages here -->
+  </div>
+
+  <div id="input-container">
+    <input type="text" id="user-input" placeholder="Type a message...">
+
+    <button id="send-button" onclick="sendMessage()">Send</button>
+  
+  </div>
+</div>
+
+<script>
+  function sendMessage() {
+    const userInput = document.getElementById('user-input');
+    const messageContainer = document.getElementById('chat-messages');
+    const receiver = document.getElementById('name');
+
+
+    if (userInput.value.trim() != '') {
+        const userMessage = document.createElement('div');
+        userMessage.className = 'message user-message';
+        userMessage.textContent = userInput.value;
+        messageContainer.appendChild(userMessage);
+
+        //Post data from user  
+        const xhr = new XMLHttpRequest();
+
+        xhr.open("POST", "newchat.html")
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        const body = JSON.stringify({
+            title: "message",
+            userId: receiver.textContent,
+            body: userInput.value,
+        })
+        xhr.send(body)
+
+        userInput.value = '';
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    }
+  }
+</script>
+
+</body>
+</html>
