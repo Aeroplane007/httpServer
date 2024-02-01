@@ -79,11 +79,11 @@
 <body>
 
 <div id="chat-container">
-    <p id="name">kaj</p>
+    <!--?receiver?-->
   <div id="chat-messages">
-    <div class="message user-message"><!--Message--></div>
-    <div class="message bot-message">Hi there!</div>
-    <!-- Add more messages here -->
+
+    <!--?Messages?-->
+
   </div>
 
   <div id="input-container">
@@ -123,6 +123,30 @@
         messageContainer.scrollTop = messageContainer.scrollHeight;
     }
   }
+  /*
+  function fetchStatus() {
+  fetch('/check_msg.html')
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (data) {
+      appendDataAsTable(data);
+    })
+    .catch(function (err) {
+      console.log('error: ' + err);
+    });
+  }
+
+  window.addEventListener('load', function () {
+    var fetchInterval = 5000; // 5 sec
+
+    // Invoke the request every 5 seconds.
+    setInterval(fetchStatus, fetchInterval);
+    //for each message append to messageContainer
+
+  });
+*/
+
 </script>
 
 </body>
