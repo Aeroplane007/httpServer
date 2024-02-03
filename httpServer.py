@@ -7,7 +7,7 @@ import secrets
 import time
 import datetime
 import hashlib
-
+import json
 
 #   Internal status codes
 # 600: Wrong password or username
@@ -97,7 +97,7 @@ def AddFriend(receiver, cookie_id):
 def GetFriends(cookies_id):
 
     user = GetUser(cookie_id)
-    print("Get friends : " + user)
+    print("Get friends for: " + user)
     query = "SELECT UserOne,UserTwo FROM friends WHERE UserOne = %s OR UserTwo = %s;"
 
     mycursor.execute(query, (user,user))
@@ -149,10 +149,41 @@ def GetMessages(cookie_id, receiver):
 
     return messages, senders
 
+def GetNewMessages(cookie_id, receiver, time_since):
+    #convert to datetime
+    user = GetUser(cookie_id)
+    time_since = datetime.datetime.fromtimestamp(time_since//1000)
+    hash = GetFriendHash(user,receiver)
+    print(time_since)
+    print(hash)
+    query = "SELECT TIMESTAMPDIFF(SECOND, %s, TimeStamp) FROM last_message WHERE ChatId= %s"
+    mycursor.execute(query, (time_since,hash))
+    time_diff = mycursor.fetchone()
+    print("time diff: ", time_diff)
+    #check if there is a message
+    if not time_diff:
+        return []
+    messages = []
+    if time_diff[0] > 0:
+        
+        query = "SELECT  Sender, LastMessage FROM last_message WHERE ChatId = %s"
+        mycursor.execute(query, (hash,))
+        msg = mycursor.fetchone()
+        if msg[0] != user:
+            messages.append(msg[1])
+        
+        query = "SELECT Sender, Message FROM messages WHERE ChatId = %s and TIMESTAMPDIFF(SECOND, %s, TimeStamp) > 0"
+        mycursor.execute(query, (hash, time_since))
+        msgs = mycursor.fetchall()
+        for msg in msgs:
+            if msg[0] != user:
+                messages.append(msg[1])
+    return messages
 
 
 
-def BuildMsg(status, filename, client_connection, cookie_id, receiver):
+
+def BuildMsg(status, filename, client_connection, cookie_id, receiver, parameters={}):
     
     if status == 200:
         #try to read file
@@ -170,10 +201,10 @@ def BuildMsg(status, filename, client_connection, cookie_id, receiver):
                 response += b'Accept-Ranges: bytes\r\n\r\n'
                 response += content
                 client_connection.sendall(response)
-        except Exception as e: print(e)
+        except: #Exception as e: print(e)
             #if no such file exists send 404
-            #print("CAUGT EXCEPTION")
-            #BuildMsg(404,0, client_connection, cookie_id)
+            print("CAUGT EXCEPTION")
+            BuildMsg(404,0, client_connection, cookie_id, 0)
     elif status == 403:
         response = b'HTTP/1.0 403 Forbidden\n\n'
         response += b'<html><body><h1>404 Forbidden!</h1></body></html>'
@@ -187,6 +218,18 @@ def BuildMsg(status, filename, client_connection, cookie_id, receiver):
         content = ParseHTML(filename, cookie_id, 601)
         print(content)
         response = 'HTTP/1.0 200 OK\n\n' + content
+        response = response.encode()
+        client_connection.sendall(response)
+    elif status == 602:
+        print("geting new msgs")
+        #Get New Messages
+        new_messages = GetNewMessages(cookie_id, receiver, parameters["Time"])
+        response = "none"
+        if len(new_messages) > 0:
+            json_message = {"messages": new_messages}
+            json_string = json.dumps(json_message, indent=2)
+            response = json_string
+        print(response)
         response = response.encode()
         client_connection.sendall(response)
     else:
@@ -216,6 +259,8 @@ def SetCookie(client_connection, username):
     mycursor.execute(query, (cookie_id, timestamp, username))
     db.commit()
 
+    return cookie_id
+
 def CheckCookie(cookie_id):
 
   
@@ -240,6 +285,15 @@ def CheckCookie(cookie_id):
     #otherwise return true
     return True
     
+def AreFriends(cookie_id, chat_name):
+    hash = GetFriendHash(GetUser(cookie_id), chat_name)
+    query = "SELECT * FROM friends WHERE FriendsId = %s"
+    mycursor.execute(query, (hash,))
+    result = mycursor.fetchone()
+    if not result:
+        return False
+    return True
+
 
 def ParseHTML(file, cookie_id, receiver,error_code):
     text_to_replace = ""
@@ -249,7 +303,7 @@ def ParseHTML(file, cookie_id, receiver,error_code):
     file_data = open('htdocs' + file)
     content = file_data.read()
     tags = []
-
+    print("psering")
 
     #look for comments of type <!--? ?-->
     for i in range(0, len(content)-4, 1):
@@ -265,6 +319,7 @@ def ParseHTML(file, cookie_id, receiver,error_code):
     #replace with correct        
     for a in tags:
         if a == "<!--?Friends?-->":
+            print("friends")
             text_to_replace = "<!--?Friends?-->"
             friends = GetFriends(cookie_id)
             friend_list = ""
@@ -279,7 +334,7 @@ def ParseHTML(file, cookie_id, receiver,error_code):
             if messages == "none":
                 continue
             html_msgs = ""
-            for i in range(len(messages)):
+            for i in range(len(messages)-1, -1, -1):
                 #check if from me or friend
                 if senders[i] ==  GetUser(cookie_id): 
                     html_msgs += "<div class=\"message user-message\">" + messages[i] + "</div>"
@@ -303,7 +358,7 @@ def ParseHTML(file, cookie_id, receiver,error_code):
 
 
         content = content.replace(text_to_replace, replacement)
-
+    print("doneparsing")
     return content
 
 
@@ -312,7 +367,7 @@ def StoreMessage(message, cookie_id, receiver):
     user = GetUser(cookie_id)
     #make sure users are in alphabetical order
     users = sorted([user,receiver])
-    hash = hashlib.sha256(bytes((users[0]+users[1]).encode())).hexdigest()
+    hash = GetFriendHash(user, receiver)
     #Move last message to message table
     query = "INSERT INTO messages SELECT * FROM last_message WHERE ChatId = %s"
     mycursor.execute(query, (hash,))
@@ -343,22 +398,31 @@ while True:
 
     #get clients requests
     headers = request.split('\n')
-    print(headers)
-    try:
+    headers[0] = headers[0].split("HTTP")[0]
+    if '.' in headers[0]:
         filename = headers[0].split()[1]
-        if 'Cookie' in request:
+        type = filename.split('.')[1]
+        
+    elif '?' in headers[0]:
+        filename = headers[0].split()[1].split("?")[0]
+        type = ""
+        
+    else:
+        filename = "/"
+        type = ""
+        print("Error occured, sent to start page")
+
+    if 'Cookie' in request:
             index = request.find("Cookie: id=")
             end_index = request.find("$")
             cookie_id = request[index+11:end_index+1]
             print("cookieees: " + cookie_id)
-    except:
-        filename = "/"
-        print("Erro occured, sent to start page")
 
     if filename == '/':
         filename = '/index.html'
+        type = filename.split('.')[1]
 
-    type = filename.split('.')[1]
+    
 
     print(filename)
     #in future, check if they have acces to the page they are trying to enter
@@ -367,8 +431,16 @@ while True:
 
     if request[:3] == 'GET':
         #if trying to access login without being logged in send to index.html
-        if (filename == "/login.html") and not CheckCookie(cookie_id):
+        if (filename == "/login.html" or filename == "/chat.html") and not CheckCookie(cookie_id):
             BuildMsg(403, 0, client_connection, cookie_id, 0)
+        elif filename == "/getnewchats" and CheckCookie(cookie_id):
+            #Get name of receiver
+            chat_name = headers[0].split()[1].split("?")[1].split("&")[0].split("=")[1]
+            time_since = int(headers[0].split()[1].split("?")[1].split("&")[1].split("=")[1])
+            print(time_since)
+            #check if they are friends
+            if AreFriends(cookie_id, chat_name):
+                BuildMsg(602, 0, client_connection, cookie_id, chat_name, {"Time": time_since})
 
         else:
             if (filename == "/index.html") and CheckCookie(cookie_id):
@@ -402,7 +474,7 @@ while True:
                 #check if correct password
                 if password == myresults:
                     print('success')
-                    SetCookie(client_connection, username)
+                    cookie_id = SetCookie(client_connection, username)
                     BuildMsg(200, filename, client_connection, cookie_id, 0)
 
                         
@@ -446,6 +518,8 @@ while True:
             chat_name = request.split('Chat=')[1]
             #GetMessages
             BuildMsg(200, filename, client_connection, cookie_id, chat_name)
+
+        
         elif filename == "/newchat.html":
             message = request.split("body\":\"")[1][:-2]
             receiver = request.split("userId\":\"")[1].split("\",\"body")[0]

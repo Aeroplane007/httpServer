@@ -95,9 +95,10 @@
 </div>
 
 <script>
+  const messageContainer = document.getElementById('chat-messages');
   function sendMessage() {
     const userInput = document.getElementById('user-input');
-    const messageContainer = document.getElementById('chat-messages');
+    
     const receiver = document.getElementById('name');
 
 
@@ -123,29 +124,37 @@
         messageContainer.scrollTop = messageContainer.scrollHeight;
     }
   }
-  /*
-  function fetchStatus() {
-  fetch('/check_msg.html')
-    .then(function (response) {
-      return response.json();
-    })
-    .then(function (data) {
-      appendDataAsTable(data);
-    })
-    .catch(function (err) {
-      console.log('error: ' + err);
-    });
-  }
 
+  const receiver = document.getElementById('name');
+
+  let time = Date.now()
+
+  async function fetch_status() {
+
+    const response = await fetch("getnewchats?userId="+receiver.textContent+"&time="+time);
+    const new_messages = await response.json();
+    console.log(new_messages.messages)
+
+    const senderMessage = document.createElement('div');
+    senderMessage.className = 'message bot-message';
+    senderMessage.textContent = new_messages.messages;
+    messageContainer.appendChild(senderMessage);
+    messageContainer.scrollTop = messageContainer.scrollHeight;
+
+    time = Date.now()
+  }
+  
   window.addEventListener('load', function () {
-    var fetchInterval = 5000; // 5 sec
+
+    console.log(time)
+    var fetch_interval = 1000; // 5 sec
 
     // Invoke the request every 5 seconds.
-    setInterval(fetchStatus, fetchInterval);
+    setInterval(fetch_status, fetch_interval);
     //for each message append to messageContainer
 
   });
-*/
+
 
 </script>
 
