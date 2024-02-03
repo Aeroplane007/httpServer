@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat App</title>
+  <title>Chat</title>
   <style>
     body {
       margin: 0;
@@ -147,11 +147,12 @@
   window.addEventListener('load', function () {
 
     console.log(time)
-    var fetch_interval = 1000; // 5 sec
+    var fetch_interval = 1000; // 1 sec
+    messageContainer.scrollTop = messageContainer.scrollHeight;
 
-    // Invoke the request every 5 seconds.
+    // Invoke the request every 1 seconds.
     setInterval(fetch_status, fetch_interval);
-    //for each message append to messageContainer
+
 
   });
 

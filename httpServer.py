@@ -324,7 +324,7 @@ def ParseHTML(file, cookie_id, receiver,error_code):
             friends = GetFriends(cookie_id)
             friend_list = ""
             for f in friends:
-                friend_list += "<p style=\"color: red\"><form action=\"/chat.html\" method=\"POST\"><input type=\"submit\" name=\"Chat\" value=\"" + f + "\"></form></p>\n"
+                friend_list += "<form id=\"friend-box\" action=\"/chat.html\" method=\"POST\"><input type=\"submit\" name=\"Chat\" value=\"" + f + "\"></form>\n"
             replacement = friend_list
 
         elif a == "<!--?Messages?-->":
