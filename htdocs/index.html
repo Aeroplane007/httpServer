@@ -1,29 +1,84 @@
 <html>
 <head>
-    <title>Hello World</title>
+    <title>Real time Chat App</title>
+    <style>
+
+    body {
+          margin: 0;
+          padding: 0;
+          font-family: Arial, sans-serif;
+          background-color: rgb(255, 255, 255);
+        }
+    
+    #login-form {
+          width: 300px;
+          margin: 50px auto;
+          border: 1px solid #ccc;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+
+    .info-entry{
+        width: 90%;
+        height: 50px;
+        margin-left: 5%;
+        text-align: center;
+        font-size: larger;
+        border-radius: 5px;
+        border: 1px grey solid;
+    }
+
+
+
+    .submit-button{
+        width: 90%;
+        height: 50px;
+        margin-left: 5%;
+        font-size: 20px;
+        border-radius: 30px;
+        border: none;
+
+    }
+
+    #login-button{
+        background-color: #0066ff;
+        
+    }
+
+    #create-button{
+        margin-bottom: 2%;
+    }
+
+    </style>
 </head>
 <body>
-    <h1>Hello World!</h1>
-    <p>Welcome to the index.html web page..</p>
-    <p>Here's a link to <a href="ipsum.html">Ipsum</a></p>
 
-    <!--?Invalid username?-->
+    <div id="login-form">
+        <!--?Invalid username?-->
 
-    <p>Welcome to the index.html web page..</p>
-    <form action="login.html" method="post" id="userData">
-        <label for="fname">Username:</label>
-        <input type="text" id="fname" name="username"><br><br>
-        <label for="lname">Password:</label>
-        <input type="text" id="password" name="password"><br><br>
-        <input type="submit" id="btnSubmit" value="Submit">
-    </form>
+        <p style="margin-left: 5%; font-size: 30px; font-weight: 600;">Sign in to chat</p>
+        <form action="login.html" method="post" id="userData">
 
-    <a href="create.html">Create Account</a>
+            <input type="text" class="info-entry" id="username" name="username" placeholder="Username"><br><br>
+
+            <input type="password" class="info-entry" id="password" name="password" placeholder="Password"><br><br>
+            <input type="submit" class="submit-button" id="login-button" value="Sign in">
+        </form>
+
+
+            <input class="submit-button" id="create-button" type="submit" href="create.html" value="Create Account" onclick="GoToCreate()">
+
+    </div>
 
     <img src="test.png" >
 </body>
 
 <script>
+
+    function GoToCreate() {
+            // Redirect to the specified page
+            window.location.href = "create.html";
+    }
 
     function sha256(input) {
         const utf8Encoder = new TextEncoder('utf-8');
@@ -36,7 +91,7 @@
     }
 
 
-    document.getElementById("btnSubmit").addEventListener("click", function (event) {
+    document.getElementById("login-button").addEventListener("click", function (event) {
         event.preventDefault();
 
         sha256(document.getElementById("password").value).then(hash => {

@@ -1,18 +1,73 @@
 <html>
 <head>
     <title>Create Account</title>
+
+    <style>
+
+        body {
+              margin: 0;
+              padding: 0;
+              font-family: Arial, sans-serif;
+              background-color: rgb(255, 255, 255);
+            }
+        
+        #login-form {
+              width: 300px;
+              margin: 50px auto;
+              border: 1px solid #ccc;
+              border-radius: 10px;
+              overflow: hidden;
+            }
+    
+        .info-entry{
+            width: 90%;
+            height: 50px;
+            margin-left: 5%;
+            text-align: center;
+            font-size: larger;
+            border-radius: 5px;
+            border: 1px grey solid;
+        }
+    
+    
+    
+        .submit-button{
+            width: 90%;
+            height: 50px;
+            margin-left: 5%;
+            font-size: 20px;
+            border-radius: 30px;
+            border: none;
+    
+        }
+    
+        #create-button{
+            background-color: #0066ff;
+            
+        }
+
+        </style>
+
 </head>
 <body>
 
-    <!--?User already exist?-->
+    
 
-    <form action="newuser.html" method="post" id="userData">
-        <label for="fname">Username:</label>
-        <input type="text" id="fname" name="username"><br><br>
-        <label for="lname">Password:</label>
-        <input type="text" id="password" name="password"><br><br>
-        <input type="submit" id="btnSubmit" value="Submit">
-    </form>
+    <div id="login-form">
+
+
+        <p style="margin-left: 5%; font-size: 30px; font-weight: 600;">Create Account</p>
+
+        <!--?User already exist?-->
+        <form action="newuser.html" method="post" id="userData">
+
+            <input type="text" class="info-entry" id="username" name="username" placeholder="Username"><br><br>
+
+            <input type="password" class="info-entry" id="password" name="password" placeholder="Password"><br><br>
+            <input type="submit" class="submit-button" id="create-button" value="Create" >
+        </form>
+
+    </div>
 
 </body>
 <script>
@@ -28,16 +83,27 @@
     }
 
 
-    document.getElementById("btnSubmit").addEventListener("click", function (event) {
+    document.getElementById("create-button").addEventListener("click", function (event) {
         event.preventDefault();
 
-        sha256(document.getElementById("password").value).then(hash => {
-            document.getElementById("password").value = hash
-            console.log(document.getElementById("password").value)
-            document.getElementById("userData").submit();
-        })
+        var username = document.getElementById("username").value;
+        var password = document.getElementById("password").value;
+
+
+        if (username.trim() == "" || password.trim() == ""){
+            alert("Please fill out all fields!");
+        } 
+        else{
+            sha256(document.getElementById("password").value).then(hash => {
+                document.getElementById("password").value = hash
+                console.log(document.getElementById("password").value)
+                document.getElementById("userData").submit();
+            })
+        }
 
     });
+
+
 </script>
 
 </html>
