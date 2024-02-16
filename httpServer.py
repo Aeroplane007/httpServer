@@ -43,7 +43,7 @@ print('Listening on port %s ...' % SERVER_PORT)
 
 class client():
 
-    def __init__(self, connection, cookie_id, receiver=""):
+    def __init__(self, connection, cookie_id: str , receiver=""):
         self.connection = connection
         self.cookie_id = cookie_id
         self.receiver = receiver
@@ -298,7 +298,7 @@ def CheckCookie(client: client):
     mycursor.execute(query, (client.GetCookie(),))
     
  
-    id = mycursor.fetchall()[0]
+    id = mycursor.fetchone()
 
     if not id:
         return False
@@ -424,7 +424,7 @@ while True:
     new_connection, client_address = server_socket.accept()
     
 
-    client_connection = client(new_connection, 0)
+    client_connection = client(new_connection, "0")
 
 
     request = client_connection.GetConnection().recv(10240).decode()
@@ -529,12 +529,12 @@ while True:
 
             if not myresults:
                 print("No one by that name: " + username_to_add)
-                BuildMsg(200, "/login.html", client_connection, cookie_id,0)
+                BuildMsg(200, "/login.html", client_connection)
             else:
                 print("add user")
                 client_connection.SetReceiver(username_to_add)
                 AddFriend(client_connection)
-                BuildMsg(200, filename, client_connection, cookie_id, 0)
+                BuildMsg(200, filename, client_connection)
 
         #create user
         elif filename == "/newuser.html":
