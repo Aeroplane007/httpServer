@@ -113,11 +113,7 @@
 
         xhr.open("POST", "newchat.html")
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        const body = JSON.stringify({
-            title: "message",
-            userId: receiver.textContent,
-            body: userInput.value,
-        })
+        const body = "userId=" + receiver.textContent + "&" + "message=" + userInput.value
         xhr.send(body)
 
         userInput.value = '';

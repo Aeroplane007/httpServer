@@ -12,7 +12,7 @@ import json
 #   Internal status codes
 # 600: Wrong password or username
 # 601: user already exists
-# 602: noone by that username
+# 602: send messages update
 #
 
 #host ip and port
@@ -43,7 +43,7 @@ print('Listening on port %s ...' % SERVER_PORT)
 
 class client():
 
-    def __init__(self, connection, cookie_id: str , receiver=""):
+    def __init__(self, connection, cookie_id: str = "0" , receiver=""):
         self.connection = connection
         self.cookie_id = cookie_id
         self.receiver = receiver
@@ -67,7 +67,22 @@ class client():
         return self.cookie_id
     
 
+class httpRequest():
+
+    def __init__(self, req_type: str, action: str ,parameters: dict = {}):
+        self.req_type = req_type
+        self.action = action
+        self.parameters = parameters
+
+
+    def GetReqType(self):
+        return self.req_type
+
+    def GetAction(self):
+        return self.action
     
+    def GetParameter(self,parameter):
+        return self.parameters[parameter]
 
 
 
@@ -416,63 +431,17 @@ def StoreMessage(message, client: client):
     db.commit()
 
 
-
-
-
-while True:
-
-    new_connection, client_address = server_socket.accept()
-    
-
-    client_connection = client(new_connection, "0")
-
-
-    request = client_connection.GetConnection().recv(10240).decode()
-    print(request)
-
-
-    #get clients requests
-    headers = request.split('\n')
-    headers[0] = headers[0].split("HTTP")[0]
-    if '.' in headers[0]:
-        filename = headers[0].split()[1]
-        type = filename.split('.')[1]
-        
-    elif '?' in headers[0]:
-        filename = headers[0].split()[1].split("?")[0]
-        type = ""
-        
-    else:
-        filename = "/"
-        type = ""
-        print("Error occured, sent to start page")
-
-    if 'Cookie' in request:
-            index = request.find("Cookie: id=")
-            end_index = request.find("$")
-            cookie_id = request[index+11:end_index+1]
-            client_connection.SetCookie(cookie_id)
-            print("cookieees: " + cookie_id)
-
-    if filename == '/':
-        filename = '/index.html'
-        type = filename.split('.')[1]
-
-    
-
-    print(filename)
-
-
-
-
-    if request[:3] == 'GET':
+def GetHandler(request: httpRequest, client: client):
+        filename = request.GetAction()
+        if filename == '/':
+            filename = '/index.html'
         #if trying to access login without being logged in send to index.html
         if (filename == "/login.html" or filename == "/chat.html") and not CheckCookie(client_connection):
             BuildMsg(403, 0, client_connection)
         elif filename == "/getnewchats" and CheckCookie(client_connection):
             #Get name of receiver
-            chat_name = headers[0].split()[1].split("?")[1].split("&")[0].split("=")[1]
-            time_since = int(headers[0].split()[1].split("?")[1].split("&")[1].split("=")[1])
+            chat_name = request.GetParameter("userId")
+            time_since = int(request.GetParameter("time"))
             print(time_since)
             client_connection.SetReceiver(chat_name)
             #check if they are friends
@@ -488,15 +457,13 @@ while True:
             else:
                 BuildMsg(200, filename, client_connection)
 
- 
-
-
-    elif request[:4] == 'POST':
+def PostReqHandler(request: httpRequest, client: client):
+        filename = request.GetAction()
         #check if trying to login or create account
         if filename == "/login.html":
             #get username and password from post
-            username = request.split('username=')[1].split('&')[0]
-            password = request.split('password=')[1]
+            username = request.GetParameter("username")
+            password = request.GetParameter("password")
 
             #fetch password for user in sql
             query = "SELECT password FROM users WHERE username = %s;"
@@ -511,18 +478,16 @@ while True:
                     myresults = row
                 #check if correct password
                 if password == myresults:
-                    print('success')
                     client_connection.SetCookie(SetCookie(client_connection, username))
                     BuildMsg(200, filename, client_connection)
 
-                        
                 else:
                     print("Wrong user")
                     BuildMsg(600, "/index.html", client_connection)
 
         #add friend
         elif filename == "/adduser.html":
-            username_to_add = request.split('AddUser=')[1]
+            username_to_add = request.GetParameter("AddUser")
             query = "SELECT username FROM users WHERE username = %s;"
             mycursor.execute(query, (username_to_add,))
             myresults = mycursor.fetchone()
@@ -538,8 +503,8 @@ while True:
 
         #create user
         elif filename == "/newuser.html":
-            username = request.split('username=')[1].split('&')[0]
-            password = request.split('password=')[1]
+            username = request.GetParameter("username")
+            password = request.GetParameter("password")
 
             query = "SELECT username FROM users WHERE username = %s;"
             mycursor.execute(query, (username,))
@@ -556,19 +521,102 @@ while True:
                 BuildMsg(601, "/create.html", client_connection)
         #go to chat with user
         elif filename == "/chat.html":
-            chat_name = request.split('Chat=')[1]
+            chat_name = request.GetParameter("Chat")
             client_connection.SetReceiver(chat_name)
             #GetMessages
             BuildMsg(200, filename, client_connection)
 
         
         elif filename == "/newchat.html":
-            message = request.split("body\":\"")[1][:-2]
-            receiver = request.split("userId\":\"")[1].split("\",\"body")[0]
+            message = request.GetParameter("message")
+            receiver = request.GetParameter("userId")
             client_connection.SetReceiver(receiver)
             StoreMessage(message, client_connection)
         else:
             print("unknown post command")
+
+
+def ParsePostReq(headers):
+    req_type = headers[0].split()[0]
+    action = headers[0].split()[1]
+
+    args = headers[-1].split("&")
+    args[0] = args[0][1:]
+    if args:
+        parameters = {}
+        for n in args:
+            n = n.split("=")
+            parameters[n[0]] = n[1]
+
+    request = httpRequest(req_type, action, parameters)
+    return request
+
+
+def ParseGetReq(headers):
+    req_type = headers[0].split()[0]
+    action = headers[0].split()[1]
+    parameters = {}
+
+
+    if "?" in action:
+        print(action)
+        action = action.split("?")
+        args = action[1].split("&")
+        print(args)
+        if args:
+            for n in args:
+                n = n.split("=")
+                parameters[n[0]] = n[1]
+        action = action[0]
+
+    request = httpRequest(req_type, action, parameters)
+    return request
+
+
+def ParseReq(request):
+    headers = request.split("\n\r")
+
+    req_type = headers[0].split()[0]
+    if req_type == "POST":
+        return ParsePostReq(headers)
+    else:
+        return ParseGetReq(headers)
+
+
+    
+
+
+
+
+while True:
+
+    new_connection, client_address = server_socket.accept()
+    
+
+    client_connection = client(new_connection)
+
+
+    request = client_connection.GetConnection().recv(10240).decode()
+    if not request:
+        continue
+    print(request)
+
+    if 'Cookie' in request:
+        index = request.find("Cookie: id=")
+        end_index = request.find("$")
+        cookie_id = request[index+11:end_index+1]
+        client_connection.SetCookie(cookie_id)
+        print("cookieees: " + cookie_id)
+
+    request = ParseReq(request)
+
+
+    if request.GetReqType() == "GET":
+        GetHandler(request, client_connection)
+ 
+
+    elif request.GetReqType() == "POST":
+        PostReqHandler(request, client_connection)
 
     
     client_connection.GetConnection().close()
