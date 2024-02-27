@@ -9,11 +9,29 @@ import datetime
 import hashlib
 import json
 
+from client import client
+from httpRequest import httpRequest
+
 #   Internal status codes
 # 600: Wrong password or username
 # 601: user already exists
 # 602: send messages update
 #
+
+#status codes
+ERR_WRONG_PASS_OR_USER = 600
+ERR_USER_ALREADY_EXISTS = 601
+SEND_MSG_UPDATE = 602
+
+HTML_TEXT_REPLACEMENTS = {
+    "FRIENDS": ["<form id=\"friend-box\" action=\"/chat.html\" method=\"POST\"><input type=\"submit\" name=\"Chat\" value=\"", "\"></form>\n"],
+    "MESSAGE_USER" : ["<div class=\"message user-message\">", "</div>"],
+    "MESSAGE_BOT" : ["<div class=\"message bot-message\">", "</div>"],
+    "INVALID_USERNAME" : ["<p style=\"color: red; margin-left: 5%;\">","</p>"],
+    "USER_ALREADY_EXISTS" : ["<p style=\"color: red; margin-left:5%;\">","</p>"],
+    "RECEIVER" : ["<p id=\"name\">", "</p>"],
+    "REQUESTS" : ["<form id=\"request-box\" action=\"/chat.html\" method=\"POST\">", "\"></form>\n"]
+}
 
 #host ip and port
 SERVER_HOST = '0.0.0.0'
@@ -29,10 +47,6 @@ db = mysql.connector.connect(
 
 mycursor = db.cursor()
 
-
-#mycursor.execute(sqlquery)
-#db.commit()
-
 #open up socket and listen to port
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -40,49 +54,6 @@ server_socket.bind((SERVER_HOST, SERVER_PORT))
 server_socket.listen(1)
 print('Listening on port %s ...' % SERVER_PORT)
 
-
-class client():
-
-    def __init__(self, connection, cookie_id: str = "0" , receiver=""):
-        self.connection = connection
-        self.cookie_id = cookie_id
-        self.receiver = receiver
-
-    def SetReceiver(self, receiver):
-        self.receiver = receiver
-
-    def SetCookie(self, cookie):
-        self.cookie_id = cookie
-
-
-
-
-    def GetReceiver(self):
-        return self.receiver
-        
-    def GetConnection(self):
-        return self.connection
-    
-    def GetCookie(self):
-        return self.cookie_id
-    
-
-class httpRequest():
-
-    def __init__(self, req_type: str, action: str ,parameters: dict = {}):
-        self.req_type = req_type
-        self.action = action
-        self.parameters = parameters
-
-
-    def GetReqType(self):
-        return self.req_type
-
-    def GetAction(self):
-        return self.action
-    
-    def GetParameter(self,parameter):
-        return self.parameters[parameter]
 
 
 
@@ -241,10 +212,10 @@ def BuildMsg(status, filename, client: client, parameters={}):
                 response = response.encode()
                 client.GetConnection().sendall(response)
             else:
-                response = b'HTTP/1.0 200 OK\r\n'
-                response += bytes("Content-Type: image/"+ type + "\r\n", "ascii")
-                response += b'Accept-Ranges: bytes\r\n\r\n'
-                response += content
+                response = (b'HTTP/1.0 200 OK\r\n'
+                         + bytes("Content-Type: image/"+ type + "\r\n", "ascii")
+                         + b'Accept-Ranges: bytes\r\n\r\n'
+                         + content)
                 client.GetConnection().sendall(response)
         except: #Exception as e: print(e)
             #if no such file exists send 404
@@ -254,17 +225,17 @@ def BuildMsg(status, filename, client: client, parameters={}):
         response = b'HTTP/1.0 403 Forbidden\n\n'
         response += b'<html><body><h1>404 Forbidden!</h1></body></html>'
         client.GetConnection().sendall(response)
-    elif status == 600:
-        content = ParseHTML(filename,client, 600)
+    elif status == ERR_WRONG_PASS_OR_USER:
+        content = ParseHTML(filename,client, ERR_WRONG_PASS_OR_USER)
         response = 'HTTP/1.0 200 OK\n\n' + content
         response = response.encode()
         client.GetConnection().sendall(response)
-    elif status == 601:
-        content = ParseHTML(filename, client, 601)
+    elif status == ERR_USER_ALREADY_EXISTS:
+        content = ParseHTML(filename, client, ERR_USER_ALREADY_EXISTS)
         response = 'HTTP/1.0 200 OK\n\n' + content
         response = response.encode()
         client.GetConnection().sendall(response)
-    elif status == 602:
+    elif status == SEND_MSG_UPDATE:
         print("geting new msgs")
         #Get New Messages
         new_messages = GetNewMessages(client, parameters["Time"])
@@ -341,6 +312,10 @@ def AreFriends(client: client):
     return True
 
 
+def ReplacementText(tag, value):
+    return HTML_TEXT_REPLACEMENTS[tag][0] + value + HTML_TEXT_REPLACEMENTS[tag][1]
+
+
 def ParseHTML(file, client: client, error_code):
     text_to_replace = ""
     replacement = ""
@@ -365,17 +340,18 @@ def ParseHTML(file, client: client, error_code):
     #replace with correct     
     print(tags)   
     for a in tags:
+        text_to_replace = a
         if a == "<!--?Friends?-->":
             print("friends")
-            text_to_replace = "<!--?Friends?-->"
             friends = GetFriends(client)
             friend_list = ""
             for f in friends:
-                friend_list += "<form id=\"friend-box\" action=\"/chat.html\" method=\"POST\"><input type=\"submit\" name=\"Chat\" value=\"" + f + "\"></form>\n"
+                friend_list += ReplacementText("FRIENDS",f)
             replacement = friend_list
 
+        #elif a == "<!--?Requests?-->":
+            #TODO: implement
         elif a == "<!--?Messages?-->":
-            text_to_replace = "<!--?Messages?-->"
             print("GetMessages")
             messages, senders = GetMessages(client)
             if messages == "none":
@@ -384,25 +360,24 @@ def ParseHTML(file, client: client, error_code):
             for i in range(len(messages)-1, -1, -1):
                 #check if from me or friend
                 if senders[i] ==  GetUser(client): 
-                    html_msgs += "<div class=\"message user-message\">" + messages[i] + "</div>"
+                    html_msgs += ReplacementText("MESSAGE_USER",messages[i])
                 else:
-                    html_msgs += "<div class=\"message bot-message\">" + messages[i] + "</div>"
+                    html_msgs += ReplacementText("MESSAGE_BOT", messages[i])
 
                 replacement = html_msgs
             #messages, sender = GetMessages(cookie_id, receiver)
         #check if error has occured
-        elif a == "<!--?Invalid username?-->" and error_code == 600:
-            text_to_replace = "<!--?Invalid username?-->"
-            replacement = "<p style=\"color: red\">Invalid username or password</p>"
+        elif a == "<!--?Invalid username?-->" and error_code == ERR_WRONG_PASS_OR_USER:
+            
+            replacement = ReplacementText("INVALID_USERNAME", "Invalid username or password")
+            
         elif a == "<!--?receiver?-->":
-            text_to_replace = "<!--?receiver?-->"
-            replacement = "<p id=\"name\">" + client.GetReceiver() + "</p>"
-        #check if error has occured
+
+            replacement = ReplacementText("RECEIVER", client.GetReceiver())
         
-        elif a == "<!--?User already exist?-->" and error_code == 601:
-            print("ruinginin")
-            text_to_replace = "<!--?User already exist?-->"
-            replacement = "<p style=\"color: red; margin-left:5%;\">Username already exist</p>"
+        elif a == "<!--?User already exist?-->" and error_code == ERR_USER_ALREADY_EXISTS:
+
+            replacement = ReplacementText("USER_ALREADY_EXISTS","Username already exist")
 
 
         content = content.replace(text_to_replace, replacement)
@@ -446,7 +421,7 @@ def GetHandler(request: httpRequest, client: client):
             client_connection.SetReceiver(chat_name)
             #check if they are friends
             if AreFriends(client_connection):
-                BuildMsg(602, 0, client_connection, {"Time": time_since})
+                BuildMsg(SEND_MSG_UPDATE, 0, client_connection, {"Time": time_since})
 
         else:
             if (filename == "/index.html") and CheckCookie(client_connection):
@@ -456,6 +431,8 @@ def GetHandler(request: httpRequest, client: client):
 
             else:
                 BuildMsg(200, filename, client_connection)
+
+
 
 def PostReqHandler(request: httpRequest, client: client):
         filename = request.GetAction()
@@ -472,7 +449,7 @@ def PostReqHandler(request: httpRequest, client: client):
 
             #check if user existexists
             if not myresults:
-                BuildMsg(600, "/index.html", client_connection)
+                BuildMsg(ERR_WRONG_PASS_OR_USER, "/index.html", client_connection)
             else:
                 for row in myresults:
                     myresults = row
@@ -483,7 +460,7 @@ def PostReqHandler(request: httpRequest, client: client):
 
                 else:
                     print("Wrong user")
-                    BuildMsg(600, "/index.html", client_connection)
+                    BuildMsg(ERR_WRONG_PASS_OR_USER, "/index.html", client_connection)
 
         #add friend
         elif filename == "/adduser.html":
@@ -518,7 +495,7 @@ def PostReqHandler(request: httpRequest, client: client):
                 BuildMsg(200, filename, client_connection, 0)
             else:
                 print("user already exist")
-                BuildMsg(601, "/create.html", client_connection)
+                BuildMsg(ERR_USER_ALREADY_EXISTS, "/create.html", client_connection)
         #go to chat with user
         elif filename == "/chat.html":
             chat_name = request.GetParameter("Chat")

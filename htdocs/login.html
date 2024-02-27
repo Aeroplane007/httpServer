@@ -25,6 +25,14 @@
           background-color: #fff;
         }
 
+        #requests {
+          padding: 10px;
+          height: 300px;
+          overflow-y: scroll;
+          background-color: #fff;
+          display: none;
+        }
+
         #input-container {
             display: flex;
             padding: 10px;
@@ -76,18 +84,62 @@
           font-size: 16px; /* Font size adjusted */
           border-radius: 5px; /* Slightly increased border radius */
           transition: all 0.3s ease; /* Smooth transition */
-}
-
-
-    #friend-box input:hover {
-      background-color: #4CAF50; /* Green background on hover */
-      color: #fff; /* White text color on hover */
-    }
-
-        #friend-box{
-            
-            margin: 0;
         }
+
+
+      #friend-box input:hover {
+        background-color: #4CAF50; /* Green background on hover */
+        color: #fff; /* White text color on hover */
+      }
+
+      #friend-box{
+            
+          margin: 0;
+      }
+
+      #request-box input {
+          width: 100%;
+          height: 50px;
+          border: 2px solid #4CAF50; /* Green border */
+          background-color: #f8f8f8; /* Light gray background */
+          color: #333; /* Dark gray text color */
+          margin-bottom: 10px; /* Increased margin bottom */
+          text-align: center;
+          font-weight: bold; /* Changed to bold */
+          font-size: 16px; /* Font size adjusted */
+          border-radius: 5px; /* Slightly increased border radius */
+          transition: all 0.3s ease; /* Smooth transition */
+        }
+
+
+      #request-box input:hover {
+        background-color: #4CAF50; /* Green background on hover */
+        color: #fff; /* White text color on hover */
+      }
+
+      #request-box{
+            
+          margin: 0;
+      }
+
+
+      
+
+      #friend-button{
+        box-sizing: border-box;
+        width: 50%;
+        height: 25px;
+        border: 0;
+        border-right: 1px black solid;
+      }
+      #request-button{
+        box-sizing: border-box;
+        width: 50%;
+        height: 25px;
+        border: 0;
+
+
+      }
       </style>
 </head>
 <body>
@@ -98,24 +150,47 @@
 
       <div id="add-friends">
         <div id="input-container">
+
             <form action="/adduser.html" method="POST">
                 <input type="text" id="user-input" name="AddUser" placeholder="Add user by username">
             
                 <input type="submit" id="send-button" value="Add">
             </form>
           </div>
+          <button id="friend-button">Friends</button><button id="request-button">Requests</button>
         <div id="friends">
 
             <!--?Friends?-->
+        </div>
+        <div id="requests">
+
+          <!--?Requests?-->
         </div>
         
     
       </div>
       
 
+    <script>
+      let request_button = document.getElementById("request-button")
+      let friend_button = document.getElementById("friend-button")
+      let friends_list = document.getElementById("friends")
 
+      friend_button.style.backgroundColor = "#c7c5c5"
+      request_button.addEventListener("click", function (event) {
+        request_button.style.backgroundColor = "#c7c5c5"
+        friend_button.style.backgroundColor = "#d0d0d7"
+        friends_list.style.display = "none"
+      })
 
-</body>
+      friend_button.addEventListener("click", function (event) {
+        friend_button.style.backgroundColor = "#c7c5c5"
+        request_button.style.backgroundColor = "#d0d0d7"
+        friends_list.style.display = "block"
+      })
+    </script>
+
+  </body>
 
 
 </html>
