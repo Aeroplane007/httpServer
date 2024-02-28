@@ -30,7 +30,8 @@ HTML_TEXT_REPLACEMENTS = {
     "INVALID_USERNAME" : ["<p style=\"color: red; margin-left: 5%;\">","</p>"],
     "USER_ALREADY_EXISTS" : ["<p style=\"color: red; margin-left:5%;\">","</p>"],
     "RECEIVER" : ["<p id=\"name\">", "</p>"],
-    "REQUESTS" : ["<form id=\"request-box\" action=\"/chat.html\" method=\"POST\">", "\"></form>\n"]
+    "REQUESTS" : ["<div id=\"request-box\">", "</div><button class=\"accept-button\" data-spatial-value=\"", "\">Accept</button>\
+                  <button class=\"dismiss-button\" data-spatial-value=\"", "\">Dismiss</button>\n"]
 }
 
 #host ip and port
@@ -102,7 +103,7 @@ def AddFriend(client):
     result = mycursor.fetchone()
     #check so not friends
     if not result:
-        query = "INSERT INTO friends (FriendsId, UserOne, UserTwo, Status) VALUES (%s,%s,%s,%s)"
+        query = "INSERT INTO friends (FriendsId, UserWhoAdded, User2Add, Status) VALUES (%s,%s,%s,%s)"
         mycursor.execute(query, (hash, user, client.GetReceiver(), -1))
         db.commit()
     else:
@@ -114,7 +115,7 @@ def GetFriends(client: client):
 
     user = GetUser(client)
     print("Get friends for: " + user)
-    query = "SELECT UserOne,UserTwo FROM friends WHERE UserOne = %s OR UserTwo = %s;"
+    query = "SELECT UserWhoAdded, User2Add, Status FROM friends WHERE UserWhoAdded = %s OR User2Add = %s;"
 
     mycursor.execute(query, (user,user))
     usernames = mycursor.fetchall()
@@ -123,17 +124,37 @@ def GetFriends(client: client):
     if not usernames:
         return ""
     for u in usernames:
+        if u[2] == -1:
+            continue
         if u[0] == user:
-            friends.append(u[1])
+            friends.append([u[1],u[2]])
         else:
-            friends.append(u[0])
+            friends.append([u[0],u[2]])
 
     print(friends)
     return friends
 
+def GetRequests(client: client):
+    
+    user = GetUser(client)
+    print("Get requests for: " + user)
+    query = "SELECT UserWhoAdded, User2Add, Status FROM friends WHERE User2Add = %s AND Status = %s;"
+
+    mycursor.execute(query, (user,-1))
+    usernames = mycursor.fetchall()
+    requests = []
+    #check if no friends
+    print(usernames)
+    if not usernames:
+        return ""
+    for u in usernames:
+        requests.append(u[0])
+
+    return requests
+
 
 def GetMessages(client: client):
-    user = GetUser(client)
+
     print("hash")
     hash = GetFriendHash(client)
 
@@ -217,7 +238,8 @@ def BuildMsg(status, filename, client: client, parameters={}):
                          + b'Accept-Ranges: bytes\r\n\r\n'
                          + content)
                 client.GetConnection().sendall(response)
-        except: #Exception as e: print(e)
+        except: #Exception as e: 
+                    #print(e)
             #if no such file exists send 404
             print("CAUGT EXCEPTION")
             BuildMsg(404,0, client, 0)
@@ -309,11 +331,29 @@ def AreFriends(client: client):
     result = mycursor.fetchone()
     if not result:
         return False
+    if result[3] == -1:
+        return False
     return True
 
 
+def AcceptFriendRequest(client: client):
+    query = "UPDATE friends SET Status = 0 WHERE FriendsId = %s;"
+    mycursor.execute(query, (GetFriendHash(client),))
+    db.commit()
+
+def DismissFriendRequest(client: client):
+    query = "DELETE FROM friends WHERE FriendsId = %s;"
+    mycursor.execute(query, (GetFriendHash(client),))
+    db.commit()
+    
+
+
 def ReplacementText(tag, value):
-    return HTML_TEXT_REPLACEMENTS[tag][0] + value + HTML_TEXT_REPLACEMENTS[tag][1]
+    response = ""
+    for n in HTML_TEXT_REPLACEMENTS[tag][:-1]:
+        response += n + value
+    response += HTML_TEXT_REPLACEMENTS[tag][-1]
+    return response
 
 
 def ParseHTML(file, client: client, error_code):
@@ -324,7 +364,7 @@ def ParseHTML(file, client: client, error_code):
     file_data = open('htdocs' + file)
     content = file_data.read()
     tags = []
-    print("parsing:", error_code, " file: ", file)
+
 
     #look for comments of type <!--? ?-->
     for i in range(0, len(content)-4, 1):
@@ -335,22 +375,26 @@ def ParseHTML(file, client: client, error_code):
             tags.append(content[ptr1:ptr2])
     
     if tags is None:
-        print("is none")
         return content
     #replace with correct     
-    print(tags)   
+
     for a in tags:
         text_to_replace = a
         if a == "<!--?Friends?-->":
-            print("friends")
             friends = GetFriends(client)
             friend_list = ""
             for f in friends:
-                friend_list += ReplacementText("FRIENDS",f)
+                friend_list += ReplacementText("FRIENDS",f[0])
             replacement = friend_list
 
-        #elif a == "<!--?Requests?-->":
-            #TODO: implement
+        elif a == "<!--?Requests?-->":
+            requests = GetRequests(client)
+            request_list = ""
+            for r in requests:
+                request_list += ReplacementText("REQUESTS",r)
+            replacement = request_list
+
+
         elif a == "<!--?Messages?-->":
             print("GetMessages")
             messages, senders = GetMessages(client)
@@ -428,7 +472,6 @@ def GetHandler(request: httpRequest, client: client):
 
                 filename = "/login.html"
                 BuildMsg(200, filename, client_connection)
-
             else:
                 BuildMsg(200, filename, client_connection)
 
@@ -500,6 +543,8 @@ def PostReqHandler(request: httpRequest, client: client):
         elif filename == "/chat.html":
             chat_name = request.GetParameter("Chat")
             client_connection.SetReceiver(chat_name)
+            if not AreFriends(client):
+                BuildMsg(200, "/login.html", client_connection)
             #GetMessages
             BuildMsg(200, filename, client_connection)
 
@@ -508,7 +553,18 @@ def PostReqHandler(request: httpRequest, client: client):
             message = request.GetParameter("message")
             receiver = request.GetParameter("userId")
             client_connection.SetReceiver(receiver)
-            StoreMessage(message, client_connection)
+            if not AreFriends(client):
+                BuildMsg(200, "/login.html", client_connection)
+            else:
+                StoreMessage(message, client_connection)
+
+        elif filename == "/accept-request":
+            client.SetReceiver(request.GetParameter("userId"))
+            AcceptRequest(client)
+
+        elif filename == "/dismiss-request":
+            client.SetReceiver(request.GetParameter("userId"))
+            DismissFriendRequest(client)
         else:
             print("unknown post command")
 
